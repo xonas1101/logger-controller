@@ -1,0 +1,9 @@
+apiVersion: logger.logger.com/v1
+kind: Logger
+metadata:
+  labels:
+    app.kubernetes.io/name: logger-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: logger-sample
+spec:
+  # TODO(user): Add fields here

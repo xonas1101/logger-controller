@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: logger-controller
 repo: github.com/xonas1101/logger-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: logger.com
+  group: logger
+  kind: Logger
+  path: github.com/xonas1101/logger-controller/api/v1
+  version: v1
 version: "3"
