@@ -19,12 +19,12 @@ package controller
 import (
 	"context"
 
+	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 )
 
 // LoggerReconciler reconciles a Logger object
@@ -36,6 +36,7 @@ type LoggerReconciler struct {
 // +kubebuilder:rbac:groups=logger.logger.com,resources=loggers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=logger.logger.com,resources=loggers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=logger.logger.com,resources=loggers/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,10 +48,27 @@ type LoggerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
-
+	l := logf.FromContext(ctx).WithValues(
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
+	l.Info("Logger controller boutta do some shi")	
 	// TODO(user): your logic here
-
+	var podList corev1.PodList
+	err:=r.List(ctx, &podList)
+	if err != nil {
+		l.Error(err, "failed to list pods")
+	}
+	l.Info("Listed pods in cluster", "count", len(podList.Items))
+	  for _, pod := range podList.Items {
+      l.Info(
+        "pod",
+        "namespace", pod.Namespace,
+        "name", pod.Name,
+        "node", pod.Spec.NodeName,
+        "phase", pod.Status.Phase,
+      )
+    }
 	return ctrl.Result{}, nil
 }
 
