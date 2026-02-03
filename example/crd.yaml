@@ -5,6 +5,9 @@ metadata:
   namespace: default
 spec:
   scope:
-    type: cluster
-  resources: []
+    type: namespace
+    namespace: default
+  resources:
+    - pods
   trigger: {}
+
