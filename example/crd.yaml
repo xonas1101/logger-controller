@@ -2,12 +2,11 @@ apiVersion: logger.logger.com/v1
 kind: Logger
 metadata:
   name: logger-sample
-  namespace: default
 spec:
   scope:
     type: namespace
     namespace: default
   resources:
     - pods
-  trigger: {}
-
+  trigger:
+    interval: 30s

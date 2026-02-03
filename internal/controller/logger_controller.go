@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -50,12 +50,44 @@ type LoggerReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
-func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	fmt.Println(">>> RECONCILE CALLED <<<")
 
+func (r *LoggerReconciler) loggerRequestsForPod(
+    ctx context.Context,
+    obj client.Object,
+) []ctrl.Request {
+
+    // We don’t care which pod changed — we re-log everything
+    var loggerList loggerv1.LoggerList
+    if err := r.List(ctx, &loggerList); err != nil {
+        return nil
+    }
+
+    reqs := make([]ctrl.Request, 0, len(loggerList.Items))
+    for _, logger := range loggerList.Items {
+        reqs = append(reqs, ctrl.Request{
+            NamespacedName: client.ObjectKey{
+                Name:      logger.Name,
+                Namespace: logger.Namespace,
+            },
+        })
+    }
+
+    return reqs
+}
+
+func isSystemNamespace(ns string) bool {
+    switch ns {
+    case "kube-system", "kube-public", "kube-node-lease":
+        return true
+    }
+    return false
+}
+
+func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := logf.FromContext(ctx).WithValues(
 			"logger", req.NamespacedName.String(),
 	)
+	l.Info("logger reconcile")
 
 	var logger loggerv1.Logger
 	if err := r.Get(ctx, req.NamespacedName, &logger); err != nil {
@@ -80,6 +112,9 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	l.V(2).Info("pods observed", "count", len(podList.Items))
 
 	for _, pod := range podList.Items {
+		if isSystemNamespace(pod.Namespace) {
+        continue
+    }
 			l.Info(
 					"pod observed",
 					"namespace", pod.Namespace,
@@ -88,7 +123,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 					"phase", pod.Status.Phase,
 			)
 	}
-
+	l.Info("=== END OF THIS RECONCILE ===")
 	return ctrl.Result{}, nil
 }
 
@@ -127,6 +162,10 @@ func (r *LoggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
             builder.WithPredicates(
                 predicate.ResourceVersionChangedPredicate{},
             ),
+        ).
+        Watches(
+            &corev1.Pod{},
+            handler.EnqueueRequestsFromMapFunc(r.loggerRequestsForPod),
         ).
         Named("logger").
         Complete(r)
