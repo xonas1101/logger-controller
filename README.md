@@ -25,6 +25,18 @@ This is an **observer controller**, not a CRUD controller.
 
 ---
 
+## Why not kubectl get all?
+
+This controller is not an alternative to ```kubectl get all```.
+
+I started this as a learning project to understand Kubernetes controllers better
+and to move closer to the kind of work platform engineers actually do. The point
+for me is the experience of building and running a controller, not competing
+with existing CLI commands.
+
+
+---
+
 ## Design principles
 
 - Custom Resources are **configuration**, not workloads
