@@ -1,5 +1,5 @@
->>> Right now, only Pods are being watched, slowly but surely, other resources will be watched.
->>> Not only logging, metrics will also be exposed for all resources.
+> Right now, only Pods are being watched, slowly but surely, other resources will be watched.
+> Not only logging, metrics will also be exposed for all resources.
 
 # Logger Controller
 
