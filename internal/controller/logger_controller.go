@@ -20,6 +20,7 @@ import (
 	"context"
 
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,6 +41,8 @@ type LoggerReconciler struct {
 // +kubebuilder:rbac:groups=logger.logger.com,resources=loggers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=logger.logger.com,resources=loggers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -75,56 +78,34 @@ func (r *LoggerReconciler) loggerRequestsForPod(
     return reqs
 }
 
+func (r *LoggerReconciler) loggerRequestsForDeployment(
+    ctx context.Context,
+    obj client.Object,
+) []ctrl.Request {
+
+    var loggerList loggerv1.LoggerList
+    if err := r.List(ctx, &loggerList); err != nil {
+        return nil
+    }
+
+    reqs := make([]ctrl.Request, 0, len(loggerList.Items))
+    for _, logger := range loggerList.Items {
+        reqs = append(reqs, ctrl.Request{
+            NamespacedName: client.ObjectKey{
+                Name:      logger.Name,
+                Namespace: logger.Namespace,
+            },
+        })
+    }
+    return reqs
+}
+
 func isSystemNamespace(ns string) bool {
     switch ns {
     case "kube-system", "kube-public", "kube-node-lease":
         return true
     }
     return false
-}
-
-func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	l := logf.FromContext(ctx).WithValues(
-			"logger", req.NamespacedName.String(),
-	)
-	l.Info("logger reconcile")
-
-	var logger loggerv1.Logger
-	if err := r.Get(ctx, req.NamespacedName, &logger); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	l.V(2).Info("reconcile triggered", "spec", logger.Spec)
-
-	if !shouldLogPods(&logger) {
-			l.V(2).Info("pods not enabled via spec.resources")
-			return ctrl.Result{}, nil
-	}
-
-	var podList corev1.PodList
-	opts := podListOptionsFromScope(&logger)
-
-	if err := r.List(ctx, &podList, opts...); err != nil {
-			l.V(2).Error(err, "failed to list pods")
-			return ctrl.Result{}, err
-	}
-
-	l.V(2).Info("pods observed", "count", len(podList.Items))
-
-	for _, pod := range podList.Items {
-		if isSystemNamespace(pod.Namespace) {
-        continue
-    }
-			l.Info(
-					"pod observed",
-					"namespace", pod.Namespace,
-					"name", pod.Name,
-					"node", pod.Spec.NodeName,
-					"phase", pod.Status.Phase,
-			)
-	}
-	l.Info("=== END OF THIS RECONCILE ===")
-	return ctrl.Result{}, nil
 }
 
 func podListOptionsFromScope(logger *loggerv1.Logger) []client.ListOption {
@@ -153,6 +134,92 @@ func shouldLogPods(logger *loggerv1.Logger) bool {
     return false
 }
 
+func shouldLogDeployments(logger *loggerv1.Logger) bool {
+    for _, r := range logger.Spec.Resources {
+        if r == "deployments" {
+            return true
+        }
+    }
+    return false
+}
+
+func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	l := logf.FromContext(ctx).WithValues(
+			"logger", req.NamespacedName.String(),
+	)
+	l.Info("logger reconcile")
+
+	var logger loggerv1.Logger
+	if err := r.Get(ctx, req.NamespacedName, &logger); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	l.V(2).Info("reconcile triggered", "spec", logger.Spec)
+
+	if !shouldLogPods(&logger) && !shouldLogDeployments(&logger){
+			l.V(2).Info("pods/deployments not enabled via spec.resources")
+			return ctrl.Result{}, nil
+	}
+
+	var podList corev1.PodList
+	opts := podListOptionsFromScope(&logger)
+
+	if err := r.List(ctx, &podList, opts...); err != nil {
+			l.V(2).Error(err, "failed to list pods")
+			return ctrl.Result{}, err
+	}
+
+	l.V(2).Info("pods observed", "count", len(podList.Items))
+
+	for _, pod := range podList.Items {
+		if isSystemNamespace(pod.Namespace) {
+        continue
+    }
+			l.Info(
+					"pod observed",
+					"namespace", pod.Namespace,
+					"name", pod.Name,
+					"node", pod.Spec.NodeName,
+					"phase", pod.Status.Phase,
+			)
+	}
+
+    if shouldLogDeployments(&logger) {
+        var deployList appsv1.DeploymentList
+        if err := r.List(ctx, &deployList, opts...); err != nil {
+            l.Error(err, "failed to list deployments")
+            return ctrl.Result{}, err
+        }
+
+        l.V(2).Info("deployments observed", "count", len(deployList.Items))
+
+        for _, deploy := range deployList.Items {
+            if isSystemNamespace(deploy.Namespace) {
+                continue
+            }
+            desired := int32(1)
+            if deploy.Spec.Replicas != nil {
+                desired = *deploy.Spec.Replicas
+            }
+
+            //use desired as a variable because desired is an optional field, which can return nil pointers
+            l.Info(
+                "deployment observed",
+                "namespace", deploy.Namespace,
+                "name", deploy.Name,
+                "replicas.desired", desired,
+                "replicas.updated", deploy.Status.UpdatedReplicas,
+                "replicas.available", deploy.Status.AvailableReplicas,
+                "replicas.unavailable", deploy.Status.UnavailableReplicas,
+                "generation", deploy.Generation,
+                "observedGeneration", deploy.Status.ObservedGeneration,
+            )
+        }
+    }
+
+	l.Info("=== END OF THIS RECONCILE ===")
+	return ctrl.Result{}, nil
+}
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *LoggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -166,6 +233,9 @@ func (r *LoggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
         Watches(
             &corev1.Pod{},
             handler.EnqueueRequestsFromMapFunc(r.loggerRequestsForPod),
+        ).Watches(
+            &appsv1.Deployment{},
+            handler.EnqueueRequestsFromMapFunc(r.loggerRequestsForDeployment),
         ).
         Named("logger").
         Complete(r)

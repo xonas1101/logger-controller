@@ -8,5 +8,6 @@ spec:
     namespace: default
   resources:
     - pods
+    - deployments
   trigger:
     interval: 30s

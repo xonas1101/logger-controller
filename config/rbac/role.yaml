@@ -13,6 +13,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - logger.logger.com
   resources:
   - loggers
