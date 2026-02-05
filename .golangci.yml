@@ -54,7 +54,7 @@ formatters:
       - third_party$
       - builtin$
       - examples$
-linters-settings:
+linters_settings:
   staticcheck:
     checks:
       - all
