@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -31,43 +32,51 @@ import (
 )
 
 var _ = Describe("Logger Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	Context("When reconciling a logger", func() {
+		const loggerName = "test-logger"
+
+		const (
+			watchedns = "logger-watched"
+			unwatchedns = "logger-unwatched"
+			crName = "logger-sample"
+		)
 
 		ctx := context.Background()
 
+		logger := &loggerv1.Logger{}
 		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
+			Name:      loggerName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		logger := &loggerv1.Logger{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Logger")
-			err := k8sClient.Get(ctx, typeNamespacedName, logger)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &loggerv1.Logger{
+			By("creating namespaces used by the Logger scope")
+
+			for _, ns := range []string{watchedns, unwatchedns} {
+				err := k8sClient.Create(ctx, &v1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+						Name: ns,
 					},
-					// TODO(user): Specify other spec details if needed.
+				})
+
+				if err != nil && !errors.IsAlreadyExists(err) {
+					Expect(err).NotTo(HaveOccurred())
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
+
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &loggerv1.Logger{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			// TODO(user): Cleanup logic after each test, like removing the logger instance.
+			logger := &loggerv1.Logger{}
+			err := k8sClient.Get(ctx, typeNamespacedName, logger)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Logger")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			By("Cleanup the specific logger instance Logger")
+			Expect(k8sClient.Delete(ctx, logger)).To(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
+		It("should successfully reconcile the logger", func() {
+			By("Reconciling the created logger")
 			controllerReconciler := &LoggerReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
