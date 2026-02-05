@@ -30,6 +30,10 @@ linters:
     modernize:
       disable:
         - omitzero
+    staticcheck:
+      checks:
+        - all
+        - -SA1019
   exclusions:
     generated: lax
     rules:
@@ -54,9 +58,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
-linters_settings:
-  staticcheck:
-    checks:
-      - all
-      - -SA1019
 
