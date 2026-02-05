@@ -27,24 +27,25 @@ import (
 type LoggerSpec struct {
 	Scope     ScopeSpec   `json:"scope"`
 	Resources []string    `json:"resources"`
-	Trigger   TriggerSpec `json:"trigger"` 
+	Trigger   TriggerSpec `json:"trigger"`
 }
 
 type ScopeSpec struct {
 	Type      string `json:"type"`
-	Namespace string `json:"namespace,omitempty"`	
+	Namespace string `json:"namespace,omitempty"`
 }
 
 type TriggerSpec struct {
 	Interval    string `json:"interval,omitempty"`
 	WatchEvents bool   `json:"watchevents,omitempty"`
 }
+
 // LoggerStatus defines the observed state of Logger.
 type LoggerStatus struct {
-	Conditions         []metav1.Condition `json:"conditions,omitempty"`
-	LastRunTime        *metav1.Time       `json:"lastRunTime,omitempty"`
-	ObservedResources  int32              `json:"observedResources,omitempty"`
-	LastError          string             `json:"lastError,omitempty"`
+	Conditions        []metav1.Condition `json:"conditions,omitempty"`
+	LastRunTime       *metav1.Time       `json:"lastRunTime,omitempty"`
+	ObservedResources int32              `json:"observedResources,omitempty"`
+	LastError         string             `json:"lastError,omitempty"`
 }
 
 // +kubebuilder:object:root=true
