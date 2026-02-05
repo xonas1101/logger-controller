@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"slices"
 
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -126,26 +127,16 @@ func podListOptionsFromScope(logger *loggerv1.Logger) []client.ListOption {
 }
 
 func shouldLogPods(logger *loggerv1.Logger) bool {
-	for _, r := range logger.Spec.Resources {
-		if r == "pods" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(logger.Spec.Resources, "pods")
 }
 
 func shouldLogDeployments(logger *loggerv1.Logger) bool {
-	for _, r := range logger.Spec.Resources {
-		if r == "deployments" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(logger.Spec.Resources, "deployments")
 }
 
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := logf.FromContext(ctx).WithValues(
-		"logger", req.NamespacedName.String(),
+		"logger", req.String(),
 	)
 	l.Info("logger reconcile")
 
@@ -202,7 +193,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				desired = *deploy.Spec.Replicas
 			}
 
-			//use desired as a variable because desired is an optional field, which can return nil pointers
+			// use desired as a variable because desired is an optional field, which can return nil pointers
 			l.Info(
 				"deployment observed",
 				"namespace", deploy.Namespace,
