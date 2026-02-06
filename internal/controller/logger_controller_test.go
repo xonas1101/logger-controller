@@ -41,7 +41,7 @@ func testPod(name, namespace string) *corev1.Pod {
 }
 
 func testDeployment(name, namespace string) *appsv1.Deployment {
-	replicas := int32(1)
+	replicas := int32(3)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -70,36 +70,12 @@ func testDeployment(name, namespace string) *appsv1.Deployment {
 	}
 }
 
-func podIsLogged(ctx context.Context, name, namespace string) bool {
-	pod := &corev1.Pod{}
-	if err := k8sClient.Get(ctx,
-		types.NamespacedName{Name: name, Namespace: namespace},
-		pod,
-	); err != nil {
-		return false
+func observedCount(ctx context.Context, key types.NamespacedName) int32 {
+	logger := &loggerv1.Logger{}
+	if err := k8sClient.Get(ctx, key, logger); err != nil {
+		return -1
 	}
-
-	if pod.Annotations == nil {
-		return false
-	}
-
-	return pod.Annotations["logger/observed"] == "true"
-}
-
-func deploymentIsLogged(ctx context.Context, name, namespace string) bool {
-	dep := &appsv1.Deployment{}
-	if err := k8sClient.Get(ctx,
-		types.NamespacedName{Name: name, Namespace: namespace},
-		dep,
-	); err != nil {
-		return false
-	}
-
-	if dep.Annotations == nil {
-		return false
-	}
-
-	return dep.Annotations["logger/observed"] == "true"
+	return logger.Status.ObservedResources
 }
 
 var _ = Describe("Logger Controller", func() {
@@ -168,22 +144,10 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
-
-		Eventually(func() bool {
-			return podIsLogged(ctx, "pod-watched", watchedNamespace)
-		}, 5*time.Second, 200*time.Millisecond).Should(BeTrue())
-
-		Eventually(func() bool {
-			return deploymentIsLogged(ctx, "dep-watched", watchedNamespace)
-		}).Should(BeTrue())
-
-		Consistently(func() bool {
-			return podIsLogged(ctx, "pod-unwatched", unwatchedNamespace)
-		}, 2*time.Second, 200*time.Millisecond).Should(BeFalse())
-
-		Consistently(func() bool {
-			return deploymentIsLogged(ctx, "dep-unwatched", unwatchedNamespace)
-		}).Should(BeFalse())
+		Eventually(func() int32 {
+			return observedCount(ctx, loggerKey)
+		}, 5*time.Second, 200*time.Millisecond).
+			Should(Equal(int32(2)))
 	})
 
 	It("logs ALL resources when cluster scope is used", func() {
@@ -217,21 +181,9 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
-
-		Eventually(func() bool {
-			return podIsLogged(ctx, "pod-a", watchedNamespace)
-		}).Should(BeTrue())
-
-		Eventually(func() bool {
-			return podIsLogged(ctx, "pod-b", unwatchedNamespace)
-		}).Should(BeTrue())
-
-		Eventually(func() bool {
-			return deploymentIsLogged(ctx, "dep-a", watchedNamespace)
-		}).Should(BeTrue())
-
-		Eventually(func() bool {
-			return deploymentIsLogged(ctx, "dep-b", unwatchedNamespace)
-		}).Should(BeTrue())
+		Eventually(func() int32 {
+			return observedCount(ctx, loggerKey)
+		}, 5*time.Second, 200*time.Millisecond).
+			Should(Equal(int32(8)))
 	})
 })

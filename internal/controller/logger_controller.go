@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -217,8 +218,19 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.Status.LastRunTime = &now
 	logger.Status.LastError = ""
 
-	if err := r.Status().Update(ctx, &logger); err != nil {
-			return ctrl.Result{}, err
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latest := &loggerv1.Logger{}
+		if err := r.Get(ctx, req.NamespacedName, latest); err != nil {
+			return err
+		}
+
+		latest.Status.ObservedResources = observed
+		latest.Status.LastRunTime = &now
+		latest.Status.LastError = ""
+
+		return r.Status().Update(ctx, latest)
+	}); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	l.Info("=== END OF THIS RECONCILE ===")
