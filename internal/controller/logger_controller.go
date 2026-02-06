@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"slices"
+	"strings"
 
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -112,7 +113,7 @@ func isSystemNamespace(ns string) bool {
 func podListOptionsFromScope(logger *loggerv1.Logger) []client.ListOption {
 	opts := []client.ListOption{}
 
-	switch logger.Spec.Scope.Type {
+	switch strings.ToLower(logger.Spec.Scope.Type) {
 	case "namespace":
 		if logger.Spec.Scope.Namespace != "" {
 			opts = append(opts, client.InNamespace(logger.Spec.Scope.Namespace))
