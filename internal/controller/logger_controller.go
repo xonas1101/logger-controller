@@ -24,7 +24,9 @@ import (
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -136,6 +138,7 @@ func shouldLogDeployments(logger *loggerv1.Logger) bool {
 }
 
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var observed int32 = 0
 	l := logf.FromContext(ctx).WithValues(
 		"logger", req.String(),
 	)
@@ -167,6 +170,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if isSystemNamespace(pod.Namespace) {
 			continue
 		}
+		observed++
 		l.Info(
 			"pod observed",
 			"namespace", pod.Namespace,
@@ -193,7 +197,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if deploy.Spec.Replicas != nil {
 				desired = *deploy.Spec.Replicas
 			}
-
+			observed++
 			// use desired as a variable because desired is an optional field, which can return nil pointers
 			l.Info(
 				"deployment observed",
@@ -207,6 +211,26 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				"observedGeneration", deploy.Status.ObservedGeneration,
 			)
 		}
+	}
+	now := metav1.Now()
+
+	logger.Status.ObservedResources = observed
+	logger.Status.LastRunTime = &now
+	logger.Status.LastError = ""
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latest := &loggerv1.Logger{}
+		if err := r.Get(ctx, req.NamespacedName, latest); err != nil {
+			return err
+		}
+
+		latest.Status.ObservedResources = observed
+		latest.Status.LastRunTime = &now
+		latest.Status.LastError = ""
+
+		return r.Status().Update(ctx, latest)
+	}); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	l.Info("=== END OF THIS RECONCILE ===")
