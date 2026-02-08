@@ -138,6 +138,10 @@ func shouldLogDeployments(logger *loggerv1.Logger) bool {
 	return slices.Contains(logger.Spec.Resources, "deployments")
 }
 
+func shouldLogReplicaSets(logger *loggerv1.Logger) bool {
+	return slices.Contains(logger.Spec.Resources, "replicasets")
+}
+
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var observed int32 = 0
 	l := logf.FromContext(ctx).WithValues(
@@ -163,45 +167,47 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	l.V(2).Info("reconcile triggered", "spec", logger.Spec)
 
-	if !shouldLogPods(&logger) && !shouldLogDeployments(&logger) {
-		l.V(2).Info("pods/deployments not enabled via spec.resources")
+	if !shouldLogPods(&logger) && !shouldLogDeployments(&logger) && !shouldLogReplicaSets(&logger) {
+		l.V(2).Info("pods, deployments and replicasets not enabled via spec.resources")
 		return ctrl.Result{}, nil
 	}
 
 	opts := listOptionsFromScope(&logger)
-	var podList corev1.PodList
+	if shouldLogPods(&logger){
+		var podList corev1.PodList
 
-	if err := r.List(ctx, &podList, opts...); err != nil {
-		l.V(2).Error(err, "failed to list pods")
-		return ctrl.Result{}, err
-	}
-
-	l.V(2).Info("pods observed", "count", len(podList.Items))
-
-	for _, pod := range podList.Items {
-		if isSystemNamespace(pod.Namespace) {
-			continue
+		if err := r.List(ctx, &podList, opts...); err != nil {
+			l.V(2).Error(err, "failed to list pods")
+			return ctrl.Result{}, err
 		}
-		observed++
-		l.Info(
-			"pod observed",
-			"namespace", pod.Namespace,
-			"name", pod.Name,
-			"node", pod.Spec.NodeName,
-			"phase", pod.Status.Phase,
-		)
+
+		l.V(2).Info("pods observed", "count", len(podList.Items))
+
+		for _, pod := range podList.Items {
+			if isSystemNamespace(pod.Namespace) {
+				continue
+			}
+			observed++
+			l.Info(
+				"pod observed",
+				"namespace", pod.Namespace,
+				"name", pod.Name,
+				"node", pod.Spec.NodeName,
+				"phase", pod.Status.Phase,
+			)
+		}
 	}
 
 	if shouldLogDeployments(&logger) {
-		var deployList appsv1.DeploymentList
-		if err := r.List(ctx, &deployList, opts...); err != nil {
+		var deplist appsv1.DeploymentList
+		if err := r.List(ctx, &deplist, opts...); err != nil {
 			l.Error(err, "failed to list deployments")
 			return ctrl.Result{}, err
 		}
 
-		l.V(2).Info("deployments observed", "count", len(deployList.Items))
+		l.V(2).Info("deployments observed", "count", len(deplist.Items))
 
-		for _, deploy := range deployList.Items {
+		for _, deploy := range deplist.Items {
 			if isSystemNamespace(deploy.Namespace) {
 				continue
 			}
@@ -224,6 +230,43 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			)
 		}
 	}
+
+	if shouldLogReplicaSets(&logger) {
+		var rslist appsv1.ReplicaSetList
+		if err := r.List(ctx, &rslist, opts...); err != nil {
+			l.Error(err, "failed to list replicasets")
+			return ctrl.Result{}, err
+		}
+
+		l.V(2).Info("replicasets observed", "count", len(rslist.Items))
+
+		for _, rs := range rslist.Items {
+			if isSystemNamespace(rs.Namespace) {
+				continue
+			}
+			desired := int32(1)
+			if rs.Spec.Replicas != nil {
+				desired = *rs.Spec.Replicas
+			}
+			observed++
+			// use desired as a variable because desired is an optional field, which can return nil pointers
+			l.Info(
+				"replicaset observed",
+				"namespace", rs.Namespace,
+				"name", rs.Name,
+				"replicas.desired", desired,
+				"replicas.current", rs.Status.Replicas,
+				"replicas.ready", rs.Status.ReadyReplicas,
+				"replicas.available", rs.Status.AvailableReplicas,
+				"generation", rs.Generation,
+				"observedGeneration", rs.Status.ObservedGeneration,
+				"createdAt", rs.CreationTimestamp,
+				"deleting", rs.DeletionTimestamp != nil,
+				"owners", rs.OwnerReferences,
+			)
+		}
+	}
+	
 	now := metav1.Now()
 
 	logger.Status.ObservedResources = observed
