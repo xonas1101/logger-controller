@@ -28,7 +28,7 @@ type LoggerSpec struct {
 	Scope     ScopeSpec `json:"scope"`
 	Resources []string  `json:"resources"`
 	// +kubebuilder:validation:Pattern=`^([0-9]+)(ns|us|ms|s|m|h)$`
-	Trigger   string    `json:"trigger,omitempty"`
+	Trigger string `json:"trigger,omitempty"`
 }
 
 type ScopeSpec struct {
