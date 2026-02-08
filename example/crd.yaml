@@ -9,4 +9,5 @@ spec:
   resources:
     - pods
     - deployments
+    - replicasets
   trigger: 30s
