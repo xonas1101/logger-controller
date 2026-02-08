@@ -173,7 +173,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	opts := listOptionsFromScope(&logger)
-	if shouldLogPods(&logger){
+	if shouldLogPods(&logger) {
 		var podList corev1.PodList
 
 		if err := r.List(ctx, &podList, opts...); err != nil {
@@ -266,7 +266,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			)
 		}
 	}
-	
+
 	now := metav1.Now()
 
 	logger.Status.ObservedResources = observed

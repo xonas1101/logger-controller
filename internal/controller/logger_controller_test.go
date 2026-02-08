@@ -177,12 +177,12 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		
+
 		Eventually(func() int32 {
 			return observedCount(ctx, loggerKey)
 		}, 5*time.Second, 200*time.Millisecond).
 			Should(Equal(int32(3)))
-  })
+	})
 
 	It("logs ALL resources when cluster scope is used", func() {
 		logger := &loggerv1.Logger{
@@ -218,7 +218,7 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
-		
+
 		Eventually(func() int32 {
 			return observedCount(ctx, loggerKey)
 		}, 5*time.Second, 200*time.Millisecond).
