@@ -246,7 +246,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	l.Info("=== END OF THIS RECONCILE ===")
-	return ctrl.Result{ RequeueAfter: requeueAfter}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
