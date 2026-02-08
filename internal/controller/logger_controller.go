@@ -113,7 +113,7 @@ func isSystemNamespace(ns string) bool {
 	return false
 }
 
-func podListOptionsFromScope(logger *loggerv1.Logger) []client.ListOption {
+func listOptionsFromScope(logger *loggerv1.Logger) []client.ListOption {
 	opts := []client.ListOption{}
 
 	switch strings.ToLower(logger.Spec.Scope.Type) {
@@ -168,8 +168,8 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	opts := listOptionsFromScope(&logger)
 	var podList corev1.PodList
-	opts := podListOptionsFromScope(&logger)
 
 	if err := r.List(ctx, &podList, opts...); err != nil {
 		l.V(2).Error(err, "failed to list pods")
