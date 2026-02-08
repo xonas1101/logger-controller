@@ -1,9 +1,9 @@
-> Right now, only Pods and Deployments are being watched, slowly but surely, other resources will be watched.
+> Right now, only Pods, Deployments and ReplicaSets are being watched, slowly but surely, other resources will be watched.
 > Not only logging, metrics will also be exposed for all resources.
 
 # Logger Controller
 
-A Kubernetes **observer-style controller** that watches **Pods** and **Deployments** and logs their state based on a declarative Custom Resource (`Logger`).
+A Kubernetes **observer-style controller** that watches **Pods**, **Deployments** and **ReplicaSets** and logs their state based on a declarative Custom Resource (`Logger`).
 
 Built using **Kubebuilder / controller-runtime**, this project focuses on reconciliation, watches, and logging patterns rather than resource mutation.
 
@@ -12,14 +12,14 @@ Built using **Kubebuilder / controller-runtime**, this project focuses on reconc
 ## What this controller does
 
 - Defines a `Logger` Custom Resource
-- Watches **Pod** and **Deployment** events (create / update / delete)
-- On every Pod/Deplyment event:
+- Watches **Pod**, **Deployment** and **ReplicaSet** events (create / update / delete)
+- On every Pod/Deployment/ReplicaSet event:
   - Reconciles matching `Logger` resources
   - Logs the current state of Pods/Deployments
 - Supports:
   - Namespace-scoped or cluster-scoped logging
   - Exclusion of Kubernetes system namespaces
-- Does **not** modify Pods/Deployments or any cluster resources
+- Does **not** modify Pods/Deployments/Replicasets or any cluster resources
 
 This is an **observer controller**, not a CRUD controller.
 
@@ -63,4 +63,5 @@ spec:
   resources:
     - pods
     - deployments
-  trigger: {}
+    -replicasets
+  trigger: 30s
