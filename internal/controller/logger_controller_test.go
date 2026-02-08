@@ -70,6 +70,36 @@ func testDeployment(name, namespace string) *appsv1.Deployment {
 	}
 }
 
+func testReplicaSet(name, namespace string) *appsv1.ReplicaSet {
+	replicas := int32(3)
+
+	return &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": name},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "pause",
+							Image: "registry.k8s.io/pause:3.9",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func observedCount(ctx context.Context, key types.NamespacedName) int32 {
 	logger := &loggerv1.Logger{}
 	if err := k8sClient.Get(ctx, key, logger); err != nil {
@@ -123,7 +153,7 @@ var _ = Describe("Logger Controller", func() {
 					Type:      "Namespace",
 					Namespace: watchedNamespace,
 				},
-				Resources: []string{"pods", "deployments"},
+				Resources: []string{"pods", "deployments", "replicasets"},
 			},
 		}
 
@@ -132,6 +162,9 @@ var _ = Describe("Logger Controller", func() {
 
 		Expect(k8sClient.Create(ctx, testDeployment("dep-watched", watchedNamespace))).To(Succeed())
 		Expect(k8sClient.Create(ctx, testDeployment("dep-unwatched", unwatchedNamespace))).To(Succeed())
+
+		Expect(k8sClient.Create(ctx, testReplicaSet("rs-watched", watchedNamespace))).To(Succeed())
+		Expect(k8sClient.Create(ctx, testReplicaSet("rs-unwatched", unwatchedNamespace))).To(Succeed())
 
 		Expect(k8sClient.Create(ctx, logger)).To(Succeed())
 
@@ -144,11 +177,12 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
+		
 		Eventually(func() int32 {
 			return observedCount(ctx, loggerKey)
 		}, 5*time.Second, 200*time.Millisecond).
-			Should(Equal(int32(2)))
-	})
+			Should(Equal(int32(3)))
+  })
 
 	It("logs ALL resources when cluster scope is used", func() {
 		logger := &loggerv1.Logger{
@@ -160,7 +194,7 @@ var _ = Describe("Logger Controller", func() {
 				Scope: loggerv1.ScopeSpec{
 					Type: "Cluster",
 				},
-				Resources: []string{"pods", "deployments"},
+				Resources: []string{"pods", "deployments", "replicasets"},
 			},
 		}
 
@@ -169,6 +203,9 @@ var _ = Describe("Logger Controller", func() {
 
 		Expect(k8sClient.Create(ctx, testDeployment("dep-a", watchedNamespace))).To(Succeed())
 		Expect(k8sClient.Create(ctx, testDeployment("dep-b", unwatchedNamespace))).To(Succeed())
+
+		Expect(k8sClient.Create(ctx, testReplicaSet("rs-a", watchedNamespace))).To(Succeed())
+		Expect(k8sClient.Create(ctx, testReplicaSet("rs-b", unwatchedNamespace))).To(Succeed())
 
 		Expect(k8sClient.Create(ctx, logger)).To(Succeed())
 
@@ -181,9 +218,10 @@ var _ = Describe("Logger Controller", func() {
 			NamespacedName: loggerKey,
 		})
 		Expect(err).NotTo(HaveOccurred())
+		
 		Eventually(func() int32 {
 			return observedCount(ctx, loggerKey)
 		}, 5*time.Second, 200*time.Millisecond).
-			Should(Equal(int32(8)))
+			Should(Equal(int32(12)))
 	})
 })
