@@ -9,5 +9,4 @@ spec:
   resources:
     - pods
     - deployments
-  trigger:
-    interval: 30s
+  trigger: 30s
