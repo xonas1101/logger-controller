@@ -25,19 +25,15 @@ import (
 
 // LoggerSpec defines the desired state of Logger
 type LoggerSpec struct {
-	Scope     ScopeSpec   `json:"scope"`
-	Resources []string    `json:"resources"`
-	Trigger   TriggerSpec `json:"trigger"`
+	Scope     ScopeSpec `json:"scope"`
+	Resources []string  `json:"resources"`
+	// +kubebuilder:validation:Pattern=`^([0-9]+)(ns|us|ms|s|m|h)$`
+	Trigger string `json:"trigger,omitempty"`
 }
 
 type ScopeSpec struct {
 	Type      string `json:"type"`
 	Namespace string `json:"namespace,omitempty"`
-}
-
-type TriggerSpec struct {
-	Interval    string `json:"interval,omitempty"`
-	WatchEvents bool   `json:"watchevents,omitempty"`
 }
 
 // LoggerStatus defines the observed state of Logger.

@@ -20,6 +20,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	loggerv1 "github.com/xonas1101/logger-controller/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -149,6 +150,17 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	requeueAfter := 30 * time.Second
+	if logger.Spec.Trigger != "" {
+		d, err := time.ParseDuration(logger.Spec.Trigger)
+		if err != nil {
+			l.Error(err, "invalid spec.trigger, must be a Go duration (e.g. 30s, 5m)")
+			logger.Status.LastError = err.Error()
+			return ctrl.Result{}, err
+		}
+		requeueAfter = d
+	}
+
 	l.V(2).Info("reconcile triggered", "spec", logger.Spec)
 
 	if !shouldLogPods(&logger) && !shouldLogDeployments(&logger) {
@@ -234,7 +246,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	l.Info("=== END OF THIS RECONCILE ===")
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

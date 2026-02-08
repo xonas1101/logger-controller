@@ -53,16 +53,10 @@ spec:
                 - type
                 type: object
               trigger:
-                properties:
-                  interval:
-                    type: string
-                  watchevents:
-                    type: boolean
-                type: object
+                type: string
             required:
             - resources
             - scope
-            - trigger
             type: object
           status:
             description: status defines the observed state of Logger
