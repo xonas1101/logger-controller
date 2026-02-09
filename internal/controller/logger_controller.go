@@ -237,7 +237,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		l.V(1).Info("deployments observed", "count", len(deplist.Items))
 		printKubectl("DEPLOYMENT")
-		
+
 		for _, deploy := range deplist.Items {
 			if isSystemNamespace(deploy.Namespace) {
 				continue
@@ -250,7 +250,7 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 
 			// ---------- kubectl-style ----------
-		  printKubectl(deployLine(deploy))
+			printKubectl(deployLine(deploy))
 
 			// ---------- ORIGINAL deep logs ----------
 			l.V(1).Info(
