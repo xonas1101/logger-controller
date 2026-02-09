@@ -53,6 +53,7 @@ spec:
                 - type
                 type: object
               trigger:
+                pattern: ^([0-9]+)(ns|us|ms|s|m|h)$
                 type: string
             required:
             - resources

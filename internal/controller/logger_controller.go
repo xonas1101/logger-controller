@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -59,6 +60,30 @@ type LoggerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
+func podLine(p corev1.Pod) string {
+	return "pod/" + p.Name + " " +
+		p.Namespace + " " +
+		string(p.Status.Phase) + " " +
+		p.Spec.NodeName
+}
+
+func deployLine(d appsv1.Deployment) string {
+	desired := int32(1)
+	if d.Spec.Replicas != nil {
+		desired = *d.Spec.Replicas
+	}
+
+	return "deploy/" + d.Name + " " +
+		d.Namespace + " " +
+		fmt.Sprintf("%d/%d", d.Status.AvailableReplicas, desired)
+}
+
+func rsLine(rs appsv1.ReplicaSet) string {
+	return "rs/" + rs.Name + " " +
+		rs.Namespace + " " +
+		fmt.Sprintf("%d", rs.Status.Replicas)
+}
+
 func (r *LoggerReconciler) loggerRequestsForPod(
 	ctx context.Context,
 	obj client.Object,
@@ -81,6 +106,10 @@ func (r *LoggerReconciler) loggerRequestsForPod(
 	}
 
 	return reqs
+}
+
+func printKubectl(line string) {
+	fmt.Println(line)
 }
 
 func (r *LoggerReconciler) loggerRequestsForDeployment(
@@ -144,9 +173,8 @@ func shouldLogReplicaSets(logger *loggerv1.Logger) bool {
 
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var observed int32 = 0
-	l := logf.FromContext(ctx).WithValues(
-		"logger", req.String(),
-	)
+	l := logf.FromContext(ctx)
+
 	l.Info("logger reconcile")
 
 	var logger loggerv1.Logger
@@ -158,120 +186,129 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if logger.Spec.Trigger != "" {
 		d, err := time.ParseDuration(logger.Spec.Trigger)
 		if err != nil {
-			l.Error(err, "invalid spec.trigger, must be a Go duration (e.g. 30s, 5m)")
-			logger.Status.LastError = err.Error()
+			l.Error(err, "invalid spec.trigger")
 			return ctrl.Result{}, err
 		}
 		requeueAfter = d
 	}
 
-	l.V(2).Info("reconcile triggered", "spec", logger.Spec)
-
-	if !shouldLogPods(&logger) && !shouldLogDeployments(&logger) && !shouldLogReplicaSets(&logger) {
-		l.V(2).Info("pods, deployments and replicasets not enabled via spec.resources")
-		return ctrl.Result{}, nil
-	}
-
 	opts := listOptionsFromScope(&logger)
+
+	// ---------------- PODS ----------------
 	if shouldLogPods(&logger) {
 		var podList corev1.PodList
-
 		if err := r.List(ctx, &podList, opts...); err != nil {
-			l.V(2).Error(err, "failed to list pods")
 			return ctrl.Result{}, err
 		}
 
-		l.V(2).Info("pods observed", "count", len(podList.Items))
+		l.V(1).Info("pods observed", "count", len(podList.Items))
+		printKubectl("PODS")
 
 		for _, pod := range podList.Items {
 			if isSystemNamespace(pod.Namespace) {
 				continue
 			}
 			observed++
-			l.Info(
-				"pod observed",
-				"namespace", pod.Namespace,
+
+			// ---------- kubectl-style (dev) ----------
+			printKubectl(podLine(pod))
+
+			// ---------- ORIGINAL deep logs ----------
+			l.V(1).Info(
+				"pod details",
 				"name", pod.Name,
+				"namespace", pod.Namespace,
 				"node", pod.Spec.NodeName,
 				"phase", pod.Status.Phase,
+				"hostIP", pod.Status.HostIP,
+				"podIP", pod.Status.PodIP,
+				"startTime", pod.Status.StartTime,
+				"conditions", pod.Status.Conditions,
 			)
 		}
 	}
 
+	// ---------------- DEPLOYMENTS ----------------
 	if shouldLogDeployments(&logger) {
 		var deplist appsv1.DeploymentList
 		if err := r.List(ctx, &deplist, opts...); err != nil {
-			l.Error(err, "failed to list deployments")
 			return ctrl.Result{}, err
 		}
 
-		l.V(2).Info("deployments observed", "count", len(deplist.Items))
-
+		l.V(1).Info("deployments observed", "count", len(deplist.Items))
+		printKubectl("DEPLOYMENT")
+		
 		for _, deploy := range deplist.Items {
 			if isSystemNamespace(deploy.Namespace) {
 				continue
 			}
+			observed++
+
 			desired := int32(1)
 			if deploy.Spec.Replicas != nil {
 				desired = *deploy.Spec.Replicas
 			}
-			observed++
-			// use desired as a variable because desired is an optional field, which can return nil pointers
-			l.Info(
-				"deployment observed",
-				"namespace", deploy.Namespace,
+
+			// ---------- kubectl-style ----------
+		  printKubectl(deployLine(deploy))
+
+			// ---------- ORIGINAL deep logs ----------
+			l.V(1).Info(
+				"deployment details",
 				"name", deploy.Name,
+				"namespace", deploy.Namespace,
 				"replicas.desired", desired,
 				"replicas.updated", deploy.Status.UpdatedReplicas,
 				"replicas.available", deploy.Status.AvailableReplicas,
 				"replicas.unavailable", deploy.Status.UnavailableReplicas,
 				"generation", deploy.Generation,
 				"observedGeneration", deploy.Status.ObservedGeneration,
+				"conditions", deploy.Status.Conditions,
 			)
 		}
 	}
 
+	// ---------------- REPLICASETS ----------------
 	if shouldLogReplicaSets(&logger) {
 		var rslist appsv1.ReplicaSetList
 		if err := r.List(ctx, &rslist, opts...); err != nil {
-			l.Error(err, "failed to list replicasets")
 			return ctrl.Result{}, err
 		}
 
-		l.V(2).Info("replicasets observed", "count", len(rslist.Items))
-
+		l.V(1).Info("replicasets observed", "count", len(rslist.Items))
+		printKubectl("REPLICASETS")
 		for _, rs := range rslist.Items {
 			if isSystemNamespace(rs.Namespace) {
 				continue
 			}
+			observed++
+
 			desired := int32(1)
 			if rs.Spec.Replicas != nil {
 				desired = *rs.Spec.Replicas
 			}
-			observed++
-			// use desired as a variable because desired is an optional field, which can return nil pointers
-			l.Info(
-				"replicaset observed",
-				"namespace", rs.Namespace,
+
+			// ---------- kubectl-style ----------
+			printKubectl(rsLine(rs))
+
+			// ---------- ORIGINAL deep logs ----------
+			l.V(1).Info(
+				"replicaset details",
 				"name", rs.Name,
+				"namespace", rs.Namespace,
 				"replicas.desired", desired,
 				"replicas.current", rs.Status.Replicas,
 				"replicas.ready", rs.Status.ReadyReplicas,
 				"replicas.available", rs.Status.AvailableReplicas,
 				"generation", rs.Generation,
 				"observedGeneration", rs.Status.ObservedGeneration,
-				"createdAt", rs.CreationTimestamp,
-				"deleting", rs.DeletionTimestamp != nil,
-				"owners", rs.OwnerReferences,
+				"ownerRefs", rs.OwnerReferences,
 			)
 		}
+
 	}
 
 	now := metav1.Now()
-
-	logger.Status.ObservedResources = observed
-	logger.Status.LastRunTime = &now
-	logger.Status.LastError = ""
 
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		latest := &loggerv1.Logger{}
@@ -288,7 +325,12 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	l.Info("=== END OF THIS RECONCILE ===")
+	l.V(1).Info(
+		"reconcile complete",
+		"observedResources", observed,
+		"requeueAfter", requeueAfter.String(),
+	)
+
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
