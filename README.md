@@ -46,6 +46,15 @@ with existing CLI commands.
 
 ---
 
+## How to use
+
+For logs like that in ```kubectl get all```, use
+```go run cmd/main.go --zap-log-level=info``` from repo root.
+For in depth, detailed logs, use
+```go run cmd/main.go --zap-log-level=debug``` from repo root.
+
+---
+
 ## Logger Custom Resource
 
 ### Example
@@ -65,3 +74,5 @@ spec:
     - deployments
     -replicasets
   trigger: 30s
+
+
