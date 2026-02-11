@@ -48,6 +48,33 @@ with existing CLI commands.
 
 ## How to use
 
+This controller works on a kubernetes cluster (you guessed it), for the same we need a cluster provisioner, like ```kind```, ```k3d``` or others.
+
+Make sure you have:
+
+- **Go** (≥ 1.20)
+- **Docker**
+- **kubectl**
+- **kind**
+- **make**
+
+Once you have a running version of any one of the above, go ahead and provision a cluster.
+
+Make sure that the context of kubectl is set to your target cluster, if you have multiple clusters. To check, run 
+```kubectl config current-context```, and inspect if the output is the same as your target cluster.
+
+Next, we want to install our CRD into our cluster. For that, an example CRD file has been provided, ```example/crd.yaml```. Make the changes you want and run the 
+```make install``` command from repo root.
+
+Go ahead and make some resources (Pods/Deployments/Replicasets) on your cluster, which you want observed.
+
+Then, make CR for you CRD, using the command 
+```kubectl create -f example/crd.yaml``` from repo root.
+
+We are all done. All thats left is to run the controller itself. For that, go to repo root and run 
+```go run cmd/main.go``` and voila your controller has started.
+
+Note:
 For logs like that in ```kubectl get all```, use
 ```go run cmd/main.go --zap-log-level=info``` from repo root.
 For in depth, detailed logs, use
