@@ -99,7 +99,7 @@ spec:
   resources:
     - pods
     - deployments
-    -replicasets
+    - replicasets
   trigger: 30s
 
 
