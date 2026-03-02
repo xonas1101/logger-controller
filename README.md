@@ -1,5 +1,6 @@
 > Right now, only Pods, Deployments and ReplicaSets are being watched, slowly but surely, other resources will be watched.
 > Not only logging, metrics will also be exposed for all resources.
+>New functionalities are otw.
 
 # Logger Controller
 
