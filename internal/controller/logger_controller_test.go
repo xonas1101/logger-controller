@@ -100,6 +100,14 @@ func testReplicaSet(name, namespace string) *appsv1.ReplicaSet {
 	}
 }
 
+func testNode(name string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+}
+
 func observedCount(ctx context.Context, key types.NamespacedName) int32 {
 	logger := &loggerv1.Logger{}
 	if err := k8sClient.Get(ctx, key, logger); err != nil {
@@ -223,5 +231,40 @@ var _ = Describe("Logger Controller", func() {
 			return observedCount(ctx, loggerKey)
 		}, 5*time.Second, 200*time.Millisecond).
 			Should(Equal(int32(12)))
+	})
+
+	It("logs nodes when nodes resource is requested", func() {
+		logger := &loggerv1.Logger{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      loggerName,
+				Namespace: "default",
+			},
+			Spec: loggerv1.LoggerSpec{
+				Scope: loggerv1.ScopeSpec{
+					Type: "Cluster",
+				},
+				Resources: []string{"nodes"},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, testNode("node-a"))).To(Succeed())
+		Expect(k8sClient.Create(ctx, testNode("node-b"))).To(Succeed())
+
+		Expect(k8sClient.Create(ctx, logger)).To(Succeed())
+
+		reconciler := &LoggerReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{
+			NamespacedName: loggerKey,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() int32 {
+			return observedCount(ctx, loggerKey)
+		}, 5*time.Second, 200*time.Millisecond).
+			Should(Equal(int32(2)))
 	})
 })
