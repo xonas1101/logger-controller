@@ -10,4 +10,5 @@ spec:
     - pods
     - deployments
     - replicasets
+    - nodes
   trigger: 30s
