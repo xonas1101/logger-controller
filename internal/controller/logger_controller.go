@@ -49,6 +49,7 @@ type LoggerReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -84,7 +85,13 @@ func rsLine(rs appsv1.ReplicaSet) string {
 		fmt.Sprintf("%d", rs.Status.Replicas)
 }
 
-func (r *LoggerReconciler) loggerRequestsForPod(
+func nodeLine(node corev1.Node) string {
+	return "node/" + node.Name + " " +
+		node.Namespace + " " +
+		fmt.Sprintf("%v", node.Status.Capacity)
+}
+
+func (r *LoggerReconciler) enqueueAllLoggers(
 	ctx context.Context,
 	obj client.Object,
 ) []ctrl.Request {
@@ -110,28 +117,6 @@ func (r *LoggerReconciler) loggerRequestsForPod(
 
 func printKubectl(line string) {
 	fmt.Println(line)
-}
-
-func (r *LoggerReconciler) loggerRequestsForDeployment(
-	ctx context.Context,
-	obj client.Object,
-) []ctrl.Request {
-
-	var loggerList loggerv1.LoggerList
-	if err := r.List(ctx, &loggerList); err != nil {
-		return nil
-	}
-
-	reqs := make([]ctrl.Request, 0, len(loggerList.Items))
-	for _, logger := range loggerList.Items {
-		reqs = append(reqs, ctrl.Request{
-			NamespacedName: client.ObjectKey{
-				Name:      logger.Name,
-				Namespace: logger.Namespace,
-			},
-		})
-	}
-	return reqs
 }
 
 func isSystemNamespace(ns string) bool {
@@ -169,6 +154,10 @@ func shouldLogDeployments(logger *loggerv1.Logger) bool {
 
 func shouldLogReplicaSets(logger *loggerv1.Logger) bool {
 	return slices.Contains(logger.Spec.Resources, "replicasets")
+}
+
+func shouldLogNodes(logger *loggerv1.Logger) bool {
+	return slices.Contains(logger.Spec.Resources, "nodes")
 }
 
 func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -308,6 +297,38 @@ func (r *LoggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	}
 
+	if shouldLogNodes(&logger) {
+		var nodelist corev1.NodeList
+		if err := r.List(ctx, &nodelist, opts...); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		l.V(1).Info("nodes observed", "count", len(nodelist.Items))
+		printKubectl("NODES")
+		for _, node := range nodelist.Items {
+			observed++
+
+			// ---------- kubectl-style ----------
+			printKubectl(nodeLine(node))
+
+			// ---------- deep logs ----------
+			l.V(1).Info(
+				"node details",
+				"name", node.Name,
+				"kubeletVersion", node.Status.NodeInfo.KubeletVersion,
+				"osImage", node.Status.NodeInfo.OSImage,
+				"architecture", node.Status.NodeInfo.Architecture,
+				"containerRuntime", node.Status.NodeInfo.ContainerRuntimeVersion,
+				"allocatableCPU", node.Status.Allocatable.Cpu().String(),
+				"allocatableMemory", node.Status.Allocatable.Memory().String(),
+				"capacity", node.Status.Capacity,
+				"conditions", node.Status.Conditions,
+				"addresses", node.Status.Addresses,
+			)
+		}
+
+	}
+
 	now := metav1.Now()
 
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -345,11 +366,13 @@ func (r *LoggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(
 			&corev1.Pod{},
-			handler.EnqueueRequestsFromMapFunc(r.loggerRequestsForPod),
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
 		).Watches(
 		&appsv1.Deployment{},
-		handler.EnqueueRequestsFromMapFunc(r.loggerRequestsForDeployment),
-	).
-		Named("logger").
+		handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
+	).Watches(
+		&corev1.Node{},
+		handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
+	).Named("logger").
 		Complete(r)
 }
