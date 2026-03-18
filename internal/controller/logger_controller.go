@@ -87,7 +87,6 @@ func rsLine(rs appsv1.ReplicaSet) string {
 
 func nodeLine(node corev1.Node) string {
 	return "node/" + node.Name + " " +
-		node.Namespace + " " +
 		fmt.Sprintf("%v", node.Status.Capacity)
 }
 
@@ -369,6 +368,9 @@ func (r *LoggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
 		).Watches(
 		&appsv1.Deployment{},
+		handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
+	).Watches(
+		&appsv1.ReplicaSet{},
 		handler.EnqueueRequestsFromMapFunc(r.enqueueAllLoggers),
 	).Watches(
 		&corev1.Node{},

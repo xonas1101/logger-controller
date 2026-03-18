@@ -1,10 +1,10 @@
-> Right now, only Pods, Deployments and ReplicaSets are being watched, slowly but surely, other resources will be watched.
+> Right now, Pods, Deployments, ReplicaSets and Nodes are being watched, slowly but surely, other resources will be watched.
 > Not only logging, metrics will also be exposed for all resources.
 > New functionalities are otw.
 
 # Logger Controller
 
-A Kubernetes **observer-style controller** that watches **Pods**, **Deployments** and **ReplicaSets** and logs their state based on a declarative Custom Resource (`Logger`).
+A Kubernetes **observer-style controller** that watches **Pods**, **Deployments**, **ReplicaSets** and **Nodes** and logs their state based on a declarative Custom Resource (`Logger`).
 
 Built using **Kubebuilder / controller-runtime**, this project focuses on reconciliation, watches, and logging patterns rather than resource mutation.
 
@@ -13,14 +13,14 @@ Built using **Kubebuilder / controller-runtime**, this project focuses on reconc
 ## What this controller does
 
 - Defines a `Logger` Custom Resource
-- Watches **Pod**, **Deployment** and **ReplicaSet** events (create / update / delete)
-- On every Pod/Deployment/ReplicaSet event:
+- Watches **Pod**, **Deployment**, **ReplicaSet** and **Node** events (create / update / delete)
+- On every Pod/Deployment/ReplicaSet/Node event:
   - Reconciles matching `Logger` resources
-  - Logs the current state of Pods/Deployments
+  - Logs the current state of Pods/Deployments/ReplicaSets/Nodes
 - Supports:
   - Namespace-scoped or cluster-scoped logging
   - Exclusion of Kubernetes system namespaces
-- Does **not** modify Pods/Deployments/Replicasets or any cluster resources
+- Does **not** modify Pods/Deployments/ReplicaSets/Nodes or any cluster resources
 
 This is an **observer controller**, not a CRUD controller.
 
@@ -67,7 +67,7 @@ Make sure that the context of kubectl is set to your target cluster, if you have
 Next, we want to install our CRD into our cluster. For that, an example CRD file has been provided, ```example/crd.yaml```. Make the changes you want and run the 
 ```make install``` command from repo root.
 
-Go ahead and make some resources (Pods/Deployments/Replicasets) on your cluster, which you want observed.
+Go ahead and make some resources (Pods/Deployments/ReplicaSets/Nodes) on your cluster, which you want observed.
 
 Then, make CR for you CRD, using the command 
 ```kubectl create -f example/crd.yaml``` from repo root.
@@ -100,7 +100,8 @@ spec:
   resources:
     - pods
     - deployments
-    -replicasets
+    - replicasets
+    - nodes
   trigger: 30s
 
 
