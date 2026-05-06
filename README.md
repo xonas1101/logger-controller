@@ -1,6 +1,7 @@
 > Right now, only Pods, Deployments and ReplicaSets are being watched, slowly but surely, other resources will be watched.
 > Not only logging, metrics will also be exposed for all resources.
 > New functionalities are otw.
+> Almost time to end this project. Gonna work on my main kubernetes controller project.
 
 # Logger Controller
 
