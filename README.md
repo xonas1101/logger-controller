@@ -1,3 +1,5 @@
+[![ACMM](https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.kubestellar.io%2Fapi%2Facmm%2Fbadge%3Frepo%3Dxonas1101%252Flogger-controller)](https://console.kubestellar.io/acmm?repo=xonas1101%2Flogger-controller)
+
 > Right now, only Pods, Deployments and ReplicaSets are being watched, slowly but surely, other resources will be watched.
 > Not only logging, metrics will also be exposed for all resources.
 > New functionalities are otw.
